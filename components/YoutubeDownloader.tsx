@@ -30,44 +30,51 @@ const YoutubeDownloader: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Point to the new local backend server
-      const backendUrl = `http://localhost:4000/api/download?url=${encodeURIComponent(url)}`;
-      const response = await fetch(backendUrl);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Download failed. Server responded with status ${response.status}.`);
+      // First, get video info and filename from backend
+      const infoUrl = `http://localhost:4000/api/info?url=${encodeURIComponent(url)}`;
+      const infoResponse = await fetch(infoUrl);
+      
+      if (!infoResponse.ok) {
+        const errorText = await infoResponse.text();
+        throw new Error(errorText || `Failed to get video info. Server responded with status ${infoResponse.status}.`);
       }
-
-      // Extract filename from the 'Content-Disposition' header from the server.
-      const disposition = response.headers.get('content-disposition');
-      let filename = 'download.mp3'; // A sensible default for audio
-      if (disposition && disposition.indexOf('attachment') !== -1) {
-        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-        const matches = filenameRegex.exec(disposition);
-        if (matches != null && matches[1]) {
-          filename = matches[1].replace(/['"]/g, '');
+      
+      const videoInfo = await infoResponse.json();
+      const filename = videoInfo.filename || 'download.mp3';
+      
+      // Download the file as a blob and trigger download
+      const downloadUrl = `http://localhost:4000/api/download?url=${encodeURIComponent(url)}&t=${Date.now()}`;
+      
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'audio/mpeg, application/octet-stream, */*'
         }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
       }
-
-      // Get the data as a Blob, which is a file-like object.
+      
+      // Get the blob data
       const blob = await response.blob();
       
-      // Create a temporary URL for the blob.
-      const downloadUrl = window.URL.createObjectURL(blob);
+      // Create a temporary URL for the blob
+      const blobUrl = window.URL.createObjectURL(blob);
       
-      // Create a hidden anchor tag to trigger the download.
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = downloadUrl;
-      a.download = filename;
+      // Create a temporary anchor tag to trigger download
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      link.style.display = 'none';
       
-      document.body.appendChild(a);
-      a.click();
+      // Add to DOM, click, and remove
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
-      // Clean up by revoking the object URL and removing the anchor.
-      window.URL.revokeObjectURL(downloadUrl);
-      a.remove();
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(blobUrl);
       
       setUrl(''); // Clear input after successful download
     } catch (err: any) {

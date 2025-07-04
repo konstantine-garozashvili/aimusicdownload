@@ -28,6 +28,51 @@ app.options('*', (req, res) => {
   res.status(200).end();
 });
 
+// New endpoint to get video info without downloading
+app.get('/api/info', async (req, res) => {
+  console.log('Info endpoint hit with URL:', req.query.url);
+  
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Content-Type', 'application/json');
+  
+  const { url } = req.query;
+
+  if (!url || !ytdl.validateURL(String(url))) {
+    console.log('Invalid URL provided:', url);
+    return res.status(400).json({ error: 'Invalid or missing YouTube URL' });
+  }
+
+  try {
+    console.log('Getting video info for:', url);
+    const info = await ytdl.getInfo(String(url));
+    const title = info.videoDetails.title;
+    console.log('Video title:', title);
+    
+    // Sanitize the title to create a valid filename
+    const sanitizedTitle = title
+      .replace(/[^a-zA-Z0-9\s\-_]/g, '') // Keep letters, numbers, spaces, hyphens, underscores
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+      .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+      .substring(0, 100); // Limit length to 100 characters
+    
+    const filename = (sanitizedTitle || 'youtube-audio') + '.mp3';
+    
+    res.json({
+      title: title,
+      filename: filename,
+      duration: info.videoDetails.lengthSeconds
+    });
+    
+  } catch (error) {
+    console.error('Error getting video info:', error);
+    res.status(500).json({ error: 'Failed to get video information' });
+  }
+});
+
 app.get('/api/download', async (req, res) => {
   console.log('Download endpoint hit with URL:', req.query.url);
   
@@ -65,17 +110,29 @@ app.get('/api/download', async (req, res) => {
     console.log('Sanitized filename:', sanitizedTitle);
 
     // Set headers to trigger a download in the browser as an MP3 audio file.
-    // Use application/octet-stream to prevent IDM interference
     const filename = sanitizedTitle || 'youtube-audio';
     const safeFilename = filename.replace(/["\\]/g, ''); // Remove quotes and backslashes for header safety
+    const fullFilename = `${safeFilename}.mp3`;
     
-    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}.mp3"`);
-    res.setHeader('Content-Type', 'audio/mpeg'); // Change back to audio/mpeg for proper filename recognition
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    // Anti-download-manager headers to force browser-native downloads
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, nosnippet, noarchive');
+    res.setHeader('X-Download-Options', 'noopen');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    
+    // Use RFC 6266 compliant Content-Disposition header with UTF-8 encoding
+    const encodedFilename = encodeURIComponent(fullFilename);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}.mp3"; filename*=UTF-8''${encodedFilename}`);
+    res.setHeader('Content-Type', 'application/force-download'); // Force download type to bypass IDM
+    res.setHeader('Content-Transfer-Encoding', 'binary');
+    res.setHeader('X-Suggested-Filename', fullFilename); // Fallback header for browsers
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    console.log('Download headers set with filename:', `${safeFilename}.mp3`);
-    console.log('Content-Disposition header:', `attachment; filename="${safeFilename}.mp3"`);
+    res.setHeader('Expires', '-1');
+    
+    console.log('Download headers set with filename:', fullFilename);
+    console.log('Content-Disposition header:', `attachment; filename="${safeFilename}.mp3"; filename*=UTF-8''${encodedFilename}`);
+    console.log('X-Suggested-Filename header:', fullFilename);
 
     console.log('Starting audio stream...');
     
