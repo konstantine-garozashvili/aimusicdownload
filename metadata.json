@@ -1,0 +1,5 @@
+{
+  "name": "AI Music Finder & YouTube Downloader",
+  "description": "An AI-powered search engine to find music by lyrics or mood, and a simple interface for YouTube video downloading.",
+  "requestFramePermissions": []
+}
