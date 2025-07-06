@@ -24,7 +24,7 @@ const YoutubeDownloader: React.FC = () => {
   const pollProgress = async (downloadId: string) => {
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:4000/api/progress/${downloadId}`);
+        const response = await fetch(`${process.env.VITE_API_URL}/api/progress/${downloadId}`);
         if (response.ok) {
           const progressData = await response.json();
           setDownloadProgress(progressData);
@@ -78,7 +78,7 @@ const YoutubeDownloader: React.FC = () => {
     try {
       console.log('Fetching video info for URL:', url);
       
-      const infoResponse = await fetch(`http://localhost:4000/api/info?url=${encodeURIComponent(url)}`);
+      const infoResponse = await fetch(`${process.env.VITE_API_URL}/api/info?url=${encodeURIComponent(url)}`);
       
       if (!infoResponse.ok) {
         throw new Error(`Failed to get video info: ${infoResponse.status}`);
@@ -145,7 +145,7 @@ const YoutubeDownloader: React.FC = () => {
       const qualityLabel = selectedFormatInfo ? (selectedFormatInfo.qualityLabel || selectedFormatInfo.quality || 'unknown') : 'unknown';
       
       // Build download URL with format, quality, and itag parameters
-      const downloadUrl = `http://localhost:4000/api/download?url=${encodeURIComponent(url)}&format=${selectedFormat}&quality=${encodeURIComponent(qualityLabel)}&itag=${selectedQuality}`;
+      const downloadUrl = `${process.env.VITE_API_URL}/api/download?url=${encodeURIComponent(url)}&format=${selectedFormat}&quality=${encodeURIComponent(qualityLabel)}&itag=${selectedQuality}`;
       
       console.log('Conversion URL:', downloadUrl);
       console.log('Selected format info:', selectedFormatInfo);
@@ -264,7 +264,7 @@ const YoutubeDownloader: React.FC = () => {
         const pollInterval = setInterval(async () => {
           try {
             console.log('Polling progress for downloadId:', downloadId);
-            const progressResponse = await fetch(`http://localhost:4000/api/progress/${downloadId}`);
+            const progressResponse = await fetch(`${process.env.VITE_API_URL}/api/progress/${downloadId}`);
             console.log('Progress response status:', progressResponse.status);
             
             if (progressResponse.ok) {
@@ -377,7 +377,7 @@ const YoutubeDownloader: React.FC = () => {
         // For FFmpeg merges, use the converted file if available
         if (conversionComplete && convertedDownloadId) {
           console.log('Downloading converted file with ID:', convertedDownloadId);
-          const fileDownloadUrl = `http://localhost:4000/api/download-file/${convertedDownloadId}`;
+          const fileDownloadUrl = `${process.env.VITE_API_URL}/api/download-file/${convertedDownloadId}`;
           const link = document.createElement('a');
           link.href = fileDownloadUrl;
           link.download = `${videoInfo.filename}.${selectedFormat}`;
@@ -395,7 +395,7 @@ const YoutubeDownloader: React.FC = () => {
       }
       
       // For non-FFmpeg formats, use regular blob download
-      const downloadUrl = `http://localhost:4000/api/download?url=${encodeURIComponent(url)}&format=${selectedFormat}&quality=${encodeURIComponent(qualityLabel)}&itag=${selectedQuality}`;
+      const downloadUrl = `${process.env.VITE_API_URL}/api/download?url=${encodeURIComponent(url)}&format=${selectedFormat}&quality=${encodeURIComponent(qualityLabel)}&itag=${selectedQuality}`;
       
       console.log('Download URL:', downloadUrl);
       console.log('Selected format info:', selectedFormatInfo);
