@@ -297,7 +297,8 @@ async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, san
       status: 'completed',
       stage: 'Téléchargement terminé',
       percentage: 100,
-      filePath: outputFile // Store file path for download endpoint
+      filePath: outputFile, // Store file path for download endpoint
+      filename: filename // Store the proper filename for download
     });
     
     console.log('FFmpeg merge completed, file ready for download:', outputFile);
@@ -423,13 +424,16 @@ app.get('/api/download-file/:downloadId', (req, res) => {
   
   try {
     const stat = fs.statSync(filePath);
-    const filename = path.basename(filePath);
+    // Use the stored filename from progress data, fallback to basename if not available
+    const filename = progress.filename || path.basename(filePath);
     
     // Set headers for file download
     res.setHeader('Content-Type', 'video/mp4');
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Cache-Control', 'no-cache');
+    
+    console.log('Using filename for download:', filename);
     
     // Stream the file
     const fileStream = fs.createReadStream(filePath);
