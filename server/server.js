@@ -34,7 +34,7 @@ function mergeVideoAudio(videoFile, audioFile, outputFile) {
       '-c:v', 'copy',
       '-c:a', 'aac',
       '-f', 'mp4',
-      '-movflags', 'frag_keyframe+empty_moov',
+      '-movflags', 'faststart',
       outputFile
     ]);
     
@@ -311,27 +311,27 @@ async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, san
       message: 'FFmpeg merge completed successfully'
     });
     
-    // Schedule cleanup after 10 minutes to allow download
+    // Schedule fallback cleanup after 2 minutes (files are cleaned immediately after download)
     setTimeout(() => {
       try {
         if (fs.existsSync(videoFile)) {
           fs.unlinkSync(videoFile);
-          console.log('Cleaned up video temp file');
+          console.log('Fallback cleanup: video temp file');
         }
         if (fs.existsSync(audioFile)) {
           fs.unlinkSync(audioFile);
-          console.log('Cleaned up audio temp file');
+          console.log('Fallback cleanup: audio temp file');
         }
         if (fs.existsSync(outputFile)) {
           fs.unlinkSync(outputFile);
-          console.log('Cleaned up output temp file');
+          console.log('Fallback cleanup: output temp file');
         }
         downloadProgress.delete(downloadId);
-        console.log('Progress tracking cleaned up');
+        console.log('Fallback cleanup: progress tracking');
       } catch (err) {
-        console.error('Error during cleanup:', err);
+        console.error('Error during fallback cleanup:', err);
       }
-    }, 600000); // 10 minutes
+    }, 120000); // 2 minutes
     
   } catch (error) {
     console.error('FFmpeg merge error:', error);
@@ -436,6 +436,46 @@ app.get('/api/download-file/:downloadId', (req, res) => {
     fileStream.pipe(res);
     
     console.log('Serving FFmpeg merged file:', filePath);
+    
+    // Clean up temp files immediately after download completes
+    fileStream.on('end', () => {
+      console.log('File download completed, cleaning up temp files...');
+      
+      // Extract timestamp from the output file to find related temp files
+      const timestamp = path.basename(filePath).replace('output_', '').replace('.mp4', '');
+      const tempDir = path.dirname(filePath);
+      const videoFile = path.join(tempDir, `video_${timestamp}.mp4`);
+      const audioFile = path.join(tempDir, `audio_${timestamp}.mp4`);
+      
+      // Clean up all related temp files
+      try {
+        if (fs.existsSync(videoFile)) {
+          fs.unlinkSync(videoFile);
+          console.log('Cleaned up video temp file:', videoFile);
+        }
+        if (fs.existsSync(audioFile)) {
+          fs.unlinkSync(audioFile);
+          console.log('Cleaned up audio temp file:', audioFile);
+        }
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log('Cleaned up output temp file:', filePath);
+        }
+        
+        // Remove from progress tracking
+        downloadProgress.delete(downloadId);
+        console.log('Progress tracking cleaned up for:', downloadId);
+        
+      } catch (cleanupError) {
+        console.error('Error during immediate cleanup:', cleanupError);
+      }
+    });
+    
+    // Handle stream errors
+    fileStream.on('error', (streamError) => {
+      console.error('File stream error:', streamError);
+      res.status(500).json({ error: 'Error streaming file' });
+    });
     
   } catch (error) {
     console.error('Error serving file:', error);
@@ -880,10 +920,43 @@ app.get('/api/download', async (req, res) => {
     } else {
       // For MP3, we want audio only
       if (itag) {
-        ytdlOptions.format = itag;
+        // Validate that the requested itag is actually an audio-only format
+        const requestedFormat = availableFormats.find(f => f.itag == itag);
+        if (requestedFormat && requestedFormat.hasAudio && !requestedFormat.hasVideo) {
+          console.log(`Using requested audio format ${itag}: ${requestedFormat.audioBitrate}kbps ${requestedFormat.container}`);
+          ytdlOptions.format = itag;
+        } else {
+          console.log(`WARNING: Requested format ${itag} is not a valid audio-only format, falling back to best audio`);
+          // Find best available audio format
+          const audioFormats = availableFormats
+            .filter(f => f.hasAudio && !f.hasVideo)
+            .sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0));
+          
+          if (audioFormats.length > 0) {
+            const bestAudio = audioFormats[0];
+            console.log(`Selected best audio format: ${bestAudio.itag} (${bestAudio.audioBitrate}kbps ${bestAudio.container})`);
+            ytdlOptions.format = bestAudio.itag;
+          } else {
+            console.log('No audio-only formats found, using filter fallback');
+            ytdlOptions.quality = 'highestaudio';
+            ytdlOptions.filter = 'audioonly';
+          }
+        }
       } else {
-        ytdlOptions.quality = 'highestaudio';
-        ytdlOptions.filter = 'audioonly';
+        // No specific itag requested, find best audio format
+        const audioFormats = availableFormats
+          .filter(f => f.hasAudio && !f.hasVideo)
+          .sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0));
+        
+        if (audioFormats.length > 0) {
+          const bestAudio = audioFormats[0];
+          console.log(`Auto-selected best audio format: ${bestAudio.itag} (${bestAudio.audioBitrate}kbps ${bestAudio.container})`);
+          ytdlOptions.format = bestAudio.itag;
+        } else {
+          console.log('No audio-only formats found, using filter fallback');
+          ytdlOptions.quality = 'highestaudio';
+          ytdlOptions.filter = 'audioonly';
+        }
       }
     }
     
@@ -900,6 +973,13 @@ app.get('/api/download', async (req, res) => {
           console.log('Chosen format audio codec:', chosenFormat.audioCodec, 'video codec:', chosenFormat.videoCodec);
         } else {
           console.log('WARNING: Requested format', ytdlOptions.format, 'not found in available formats');
+          // If format not found and this is MP3, force fallback to audio-only filter
+          if (format === 'mp3') {
+            console.log('Forcing fallback to audio-only filter for MP3');
+            delete ytdlOptions.format;
+            ytdlOptions.quality = 'highestaudio';
+            ytdlOptions.filter = 'audioonly';
+          }
         }
       }
     } catch (error) {
@@ -917,7 +997,7 @@ app.get('/api/download', async (req, res) => {
         format: chosenFormat 
       });
     } else {
-      console.log('Creating stream with itag format');
+      console.log('Creating stream with filter/quality options');
       stream = ytdl(String(url), ytdlOptions);
     }
     
