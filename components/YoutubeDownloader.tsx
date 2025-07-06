@@ -271,22 +271,38 @@ const YoutubeDownloader: React.FC = () => {
               const progressData = await progressResponse.json();
               console.log('Progress data received:', progressData);
               
+              // Ensure percentage is a valid number
+              const percentage = Math.min(Math.max(progressData.percentage || 0, 0), 100);
+              
               setDownloadProgress({
-                percentage: progressData.percentage,
-                stage: progressData.stage,
-                status: progressData.status,
+                percentage: percentage,
+                stage: progressData.stage || 'En cours...',
+                status: progressData.status || 'processing',
                 downloadId
               });
               
+              console.log(`Progress updated: ${percentage}% - ${progressData.stage}`);
+              
               // When conversion is completed
-              if (progressData.status === 'completed' && progressData.percentage === 100) {
+              if (progressData.status === 'completed' && percentage === 100) {
                 clearInterval(pollInterval);
                 console.log('FFmpeg conversion completed!');
                 
-                setConversionComplete(true);
-                setConvertedDownloadId(downloadId);
-                setIsConverting(false);
-                setDownloadProgress(null);
+                // Keep progress visible for a moment to show 100% completion
+                setDownloadProgress({
+                  percentage: 100,
+                  stage: 'Conversion terminée !',
+                  status: 'completed',
+                  downloadId
+                });
+                
+                // Then update states after a delay
+                setTimeout(() => {
+                  setConversionComplete(true);
+                  setConvertedDownloadId(downloadId);
+                  setIsConverting(false);
+                  setDownloadProgress(null);
+                }, 2000); // Show completion for 2 seconds
               }
               
               // Handle errors
@@ -309,7 +325,7 @@ const YoutubeDownloader: React.FC = () => {
             setIsConverting(false);
             setDownloadProgress(null);
           }
-        }, 2000); // Poll every 2 seconds
+        }, 500); // Poll every 500ms for more responsive updates
         
         // Set timeout for the entire process (10 minutes)
         setTimeout(() => {

@@ -10,6 +10,10 @@ import { pipeline } from 'stream';
 
 const pipelineAsync = promisify(pipeline);
 
+// Store active download progress
+const downloadProgress = new Map();
+
+
 // Function to check if FFmpeg is available
 async function checkFFmpegAvailability() {
   return new Promise((resolve) => {
@@ -20,7 +24,7 @@ async function checkFFmpegAvailability() {
 }
 
 // Function to merge video and audio using FFmpeg
-function mergeVideoAudio(videoFile, audioFile, outputFile) {
+function mergeVideoAudio(videoFile, audioFile, outputFile, downloadId = null) {
   return new Promise((resolve, reject) => {
     console.log('Starting FFmpeg merge process...');
     console.log('Video file:', videoFile);
@@ -35,20 +39,98 @@ function mergeVideoAudio(videoFile, audioFile, outputFile) {
       '-c:a', 'aac',
       '-f', 'mp4',
       '-movflags', 'faststart',
+      '-progress', 'pipe:1', // Enable progress output
       outputFile
     ]);
     
     let stderr = '';
     let stdout = '';
+    let duration = 0;
+    let currentTime = 0;
     
-    // Capture FFmpeg output for debugging
+    // Update progress to show merge started
+    if (downloadId && downloadProgress.has(downloadId)) {
+      downloadProgress.set(downloadId, {
+        ...downloadProgress.get(downloadId),
+        stage: 'Fusion vidéo/audio en cours...',
+        percentage: 75
+      });
+    }
+    
+    // Capture FFmpeg output for debugging and progress tracking
     ffmpeg.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const output = data.toString();
+      stdout += output;
+      console.log('FFmpeg stdout:', output); // Debug log
+      
+      // Parse FFmpeg progress output
+      const lines = output.split('\n');
+      for (const line of lines) {
+        // Handle time-based progress (out_time_ms or out_time)
+        if (line.startsWith('out_time_ms=')) {
+          const timeMs = parseInt(line.split('=')[1]);
+          if (!isNaN(timeMs)) {
+            currentTime = timeMs / 1000; // Convert milliseconds to seconds
+          }
+        } else if (line.startsWith('out_time=')) {
+          // Parse time format like "00:01:23.45"
+          const timeStr = line.split('=')[1];
+          const timeMatch = timeStr.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+          if (timeMatch) {
+            const hours = parseInt(timeMatch[1]);
+            const minutes = parseInt(timeMatch[2]);
+            const seconds = parseInt(timeMatch[3]);
+            currentTime = hours * 3600 + minutes * 60 + seconds;
+          }
+        } else if (line.startsWith('frame=')) {
+          // Handle frame-based progress
+          const frameNum = parseInt(line.split('=')[1]);
+          if (!isNaN(frameNum) && frameNum > 0) {
+            // Estimate progress based on frame count (rough estimation)
+            // We'll update this more accurately when we get time info
+            if (downloadId && downloadProgress.has(downloadId)) {
+              const estimatedProgress = Math.min(Math.floor(frameNum / 100), 15); // Rough estimate
+              const newPercentage = 75 + estimatedProgress;
+              downloadProgress.set(downloadId, {
+                ...downloadProgress.get(downloadId),
+                percentage: newPercentage,
+                stage: `Fusion en cours... (frame ${frameNum})`
+              });
+            }
+          }
+        }
+      }
+      
+      // Update progress if we have duration and time-based progress
+      if (downloadId && downloadProgress.has(downloadId) && duration > 0 && currentTime > 0) {
+        const mergeProgress = Math.min(Math.floor((currentTime / duration) * 20), 20); // 20% for merge
+        const newPercentage = 75 + mergeProgress;
+        downloadProgress.set(downloadId, {
+          ...downloadProgress.get(downloadId),
+          percentage: newPercentage,
+          stage: `Fusion en cours... ${Math.floor((currentTime / duration) * 100)}%`
+        });
+      }
     });
     
     ffmpeg.stderr.on('data', (data) => {
-      stderr += data.toString();
-      console.log('FFmpeg stderr:', data.toString());
+      const output = data.toString();
+      stderr += output;
+      console.log('FFmpeg stderr:', output);
+      
+      // Parse duration from stderr (FFmpeg outputs duration info here)
+      if (output.includes('Duration:')) {
+        console.log('Found duration line:', output.trim());
+      }
+      const durationMatch = output.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d+)/);
+      if (durationMatch && duration === 0) {
+        const hours = parseInt(durationMatch[1]);
+        const minutes = parseInt(durationMatch[2]);
+        const seconds = parseInt(durationMatch[3]);
+        const milliseconds = parseInt(durationMatch[4].padEnd(3, '0').substring(0, 3)); // Handle variable decimal places
+        duration = hours * 3600 + minutes * 60 + seconds + (milliseconds / 1000);
+        console.log('Detected video duration:', duration, 'seconds');
+      }
     });
     
     ffmpeg.on('exit', (code) => {
@@ -62,6 +144,14 @@ function mergeVideoAudio(videoFile, audioFile, outputFile) {
       
       if (code === 0) {
         console.log('FFmpeg merge completed successfully');
+        // Update progress to show completion
+        if (downloadId && downloadProgress.has(downloadId)) {
+          downloadProgress.set(downloadId, {
+            ...downloadProgress.get(downloadId),
+            percentage: 95,
+            stage: 'Fusion terminée'
+          });
+        }
         resolve();
       } else {
         const errorMsg = `FFmpeg exited with code ${code}. Error: ${stderr || 'No error details available'}`;
@@ -89,8 +179,23 @@ function mergeVideoAudio(videoFile, audioFile, outputFile) {
  */
 async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, sanitizedTitle, providedDownloadId = null) {
   const tempDir = path.join(process.cwd(), 'temp');
-  const timestamp = Date.now();
-  const downloadId = providedDownloadId || `download_${timestamp}`;
+  
+  // Extract timestamp from providedDownloadId or generate new one
+  let timestamp;
+  let downloadId;
+  
+  if (providedDownloadId) {
+    downloadId = providedDownloadId;
+    // Extract timestamp from downloadId (format: download_1234567890)
+    const timestampMatch = providedDownloadId.match(/download_(\d+)/);
+    timestamp = timestampMatch ? parseInt(timestampMatch[1]) : Date.now();
+    console.log('Using provided download ID:', downloadId, 'with timestamp:', timestamp);
+  } else {
+    timestamp = Date.now();
+    downloadId = `download_${timestamp}`;
+    console.log('Generated new download ID:', downloadId, 'with timestamp:', timestamp);
+  }
+  
   const videoFile = path.join(tempDir, `video_${timestamp}.mp4`);
   const audioFile = path.join(tempDir, `audio_${timestamp}.mp4`);
   const outputFile = path.join(tempDir, `output_${timestamp}.mp4`);
@@ -270,7 +375,7 @@ async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, san
     });
     
     try {
-      await mergeVideoAudio(videoFile, audioFile, outputFile);
+      await mergeVideoAudio(videoFile, audioFile, outputFile, downloadId);
     } catch (ffmpegError) {
       console.error('FFmpeg merge failed:', ffmpegError.message);
       downloadProgress.set(downloadId, {
@@ -369,9 +474,6 @@ async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, san
 
 const app = express();
 const PORT = 4000;
-
-// Store active download progress
-const downloadProgress = new Map();
 
 // Use CORS to allow requests from the frontend, which runs on a different port.
 // Logging middleware
