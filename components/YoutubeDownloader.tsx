@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { VideoResult, VideoInfo, DownloadOptions, AvailableFormat } from '../types';
+import { VideoInfo, DownloadOptions, AvailableFormat } from '../types';
 
 const YoutubeDownloader: React.FC = () => {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [result, setResult] = useState<VideoResult | null>(null);
+
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [error, setError] = useState('');
   const [selectedFormat, setSelectedFormat] = useState<'mp3' | 'mp4'>('mp3');
@@ -69,7 +69,7 @@ const YoutubeDownloader: React.FC = () => {
     setIsLoading(true);
     setError('');
     setVideoInfo(null);
-    setResult(null);
+
     setDownloadProgress(null);
     setIsConverting(false);
     setConversionComplete(false);
@@ -370,12 +370,7 @@ const YoutubeDownloader: React.FC = () => {
           document.body.removeChild(link);
           
           console.log('Download completed successfully');
-          setResult({
-            title: videoInfo.title || 'Unknown Title',
-            artist: 'YouTube',
-            youtubeUrl: url,
-            thumbnailUrl: videoInfo.thumbnail || ''
-          });
+
           return;
         } else {
           setError('Veuillez d\'abord convertir la vidéo avant de télécharger');
@@ -442,12 +437,7 @@ const YoutubeDownloader: React.FC = () => {
       
       console.log('Download completed successfully');
       
-      setResult({
-        title: videoInfo.title || 'Unknown Title',
-        artist: 'YouTube',
-        youtubeUrl: url,
-        thumbnailUrl: videoInfo.thumbnail || ''
-      });
+
         
     } catch (err) {
       console.error('Download error:', err);
@@ -759,14 +749,7 @@ const YoutubeDownloader: React.FC = () => {
           </div>
         )}
         
-        {/* Success Message */}
-        {result && (
-          <div className="bg-green-900/30 border border-green-500/50 text-green-400 px-4 py-3 rounded-lg">
-            <p className="font-semibold">Téléchargement terminé !</p>
-            <p className="text-sm">{result.title}</p>
-          </div>
-        )}
-        
+
         {/* Error Message */}
         {error && (
           <div className="bg-red-900/30 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg">

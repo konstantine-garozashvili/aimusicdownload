@@ -1,6 +1,5 @@
 import React from 'react';
 import YoutubeDownloader from './components/YoutubeDownloader';
-import AIEnhancedSearch from './components/AIEnhancedSearch';
 import { MusicIcon } from './components/icons';
 
 const App: React.FC = () => {
@@ -10,24 +9,15 @@ const App: React.FC = () => {
         <div className="flex items-center justify-center gap-4 mb-2">
           <MusicIcon className="w-10 h-10 text-cyan-400" />
           <h1 className="text-4xl sm:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-            AI Music Finder
+            YouTube Downloader
           </h1>
         </div>
         <p className="text-gray-400 text-lg">
-          Find music by lyrics or vibe, or download from a URL.
+          Téléchargez des vidéos et de la musique depuis YouTube.
         </p>
       </header>
 
-      <main className="w-full max-w-4xl space-y-12">
-        <AIEnhancedSearch />
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center" aria-hidden="true">
-            <div className="w-full border-t border-gray-700"></div>
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-gray-900 px-4 text-sm text-gray-500">OR</span>
-          </div>
-        </div>
+      <main className="w-full max-w-4xl">
         <YoutubeDownloader />
       </main>
 
