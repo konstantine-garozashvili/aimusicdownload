@@ -13,7 +13,7 @@ const App: React.FC = () => {
           </h1>
         </div>
         <p className="text-gray-400 text-lg">
-          Téléchargez des vidéos et de la musique depuis YouTube.
+          ჩამოტვირთეთ ვიდეოები და მუსიკა YouTube-დან.
         </p>
       </header>
 
@@ -22,8 +22,8 @@ const App: React.FC = () => {
       </main>
 
       <footer className="mt-16 text-center text-gray-500 text-sm">
-        <p>Powered by Gemini & React</p>
-        <p>Disclaimer: Downloading copyrighted content may be against YouTube's terms of service.</p>
+        <p>Made by gldani 4mk ლოთებისგან , დიდი სიყვარულით . </p>
+        <p></p>
       </footer>
     </div>
   );

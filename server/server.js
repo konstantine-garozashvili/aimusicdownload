@@ -417,27 +417,11 @@ async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, san
       message: 'FFmpeg merge completed successfully'
     });
     
-    // Schedule fallback cleanup after 2 minutes (files are cleaned immediately after download)
+    // Schedule fallback cleanup after 5 minutes (files should be cleaned immediately after download)
     setTimeout(() => {
-      try {
-        if (fs.existsSync(videoFile)) {
-          fs.unlinkSync(videoFile);
-          console.log('Fallback cleanup: video temp file');
-        }
-        if (fs.existsSync(audioFile)) {
-          fs.unlinkSync(audioFile);
-          console.log('Fallback cleanup: audio temp file');
-        }
-        if (fs.existsSync(outputFile)) {
-          fs.unlinkSync(outputFile);
-          console.log('Fallback cleanup: output temp file');
-        }
-        downloadProgress.delete(downloadId);
-        console.log('Fallback cleanup: progress tracking');
-      } catch (err) {
-        console.error('Error during fallback cleanup:', err);
-      }
-    }, 120000); // 2 minutes
+      console.log('Running fallback cleanup for FFmpeg files...');
+      cleanupAfterDownload(downloadId, [videoFile, audioFile, outputFile]);
+    }, 300000); // 5 minutes
     
   } catch (error) {
     console.error('FFmpeg merge error:', error);
@@ -449,20 +433,8 @@ async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, san
       stage: 'Erreur lors du traitement'
     });
     
-    // Clean up temp files on error
-    try {
-      if (fs.existsSync(videoFile)) fs.unlinkSync(videoFile);
-      if (fs.existsSync(audioFile)) fs.unlinkSync(audioFile);
-      if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
-    } catch (cleanupErr) {
-      console.error('Error cleaning up temp files:', cleanupErr);
-    }
-    
-    // Clean up progress after delay
-    setTimeout(() => {
-      downloadProgress.delete(downloadId);
-      console.log('Progress tracking cleaned up after error');
-    }, 5000);
+    // Clean up temp files on error using centralized function
+    cleanupAfterDownload(downloadId, [videoFile, audioFile, outputFile]);
     
     if (!res.headersSent) {
       res.status(500).send('Failed to merge video and audio streams: ' + error.message);
@@ -472,8 +444,80 @@ async function handleFFmpegMergeNew(req, res, url, videoFormat, audioFormat, san
  
 
 
+// Cleanup function for temporary files
+function cleanupTempFiles() {
+  const tempDir = path.join(process.cwd(), 'temp');
+  
+  if (!fs.existsSync(tempDir)) {
+    console.log('Temp directory does not exist, skipping cleanup');
+    return;
+  }
+  
+  try {
+    const files = fs.readdirSync(tempDir);
+    let cleanedCount = 0;
+    
+    files.forEach(file => {
+      const filePath = path.join(tempDir, file);
+      const stats = fs.statSync(filePath);
+      const now = Date.now();
+      const fileAge = now - stats.mtime.getTime();
+      
+      // Clean files older than 10 minutes (600000 ms)
+      if (fileAge > 600000) {
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`Cleaned up old temp file: ${file}`);
+          cleanedCount++;
+        } catch (err) {
+          console.error(`Error cleaning up file ${file}:`, err.message);
+        }
+      }
+    });
+    
+    if (cleanedCount > 0) {
+      console.log(`Cleanup completed: ${cleanedCount} old temp files removed`);
+    } else {
+      console.log('Cleanup completed: no old temp files found');
+    }
+  } catch (err) {
+    console.error('Error during temp files cleanup:', err.message);
+  }
+}
+
+// Function to clean up files after regular download completion
+function cleanupAfterDownload(downloadId, tempFiles = []) {
+  console.log(`Starting cleanup for download ${downloadId}`);
+  
+  // Clean up any temp files if provided
+  tempFiles.forEach(filePath => {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`Cleaned up temp file: ${filePath}`);
+      }
+    } catch (err) {
+      console.error(`Error cleaning up temp file ${filePath}:`, err.message);
+    }
+  });
+  
+  // Remove from progress tracking if exists
+  if (downloadProgress.has(downloadId)) {
+    downloadProgress.delete(downloadId);
+    console.log(`Progress tracking cleaned up for: ${downloadId}`);
+  }
+}
+
 const app = express();
 const PORT = 4000;
+
+// Clean up old temp files on server startup
+console.log('Starting server cleanup...');
+cleanupTempFiles();
+
+// Schedule periodic cleanup every 30 minutes
+setInterval(cleanupTempFiles, 30 * 60 * 1000);
+console.log('Scheduled periodic temp file cleanup every 30 minutes');
 
 // Use CORS to allow requests from the frontend, which runs on a different port.
 // Logging middleware
@@ -545,7 +589,7 @@ app.get('/api/download-file/:downloadId', (req, res) => {
     
     // Clean up temp files immediately after download completes
     fileStream.on('end', () => {
-      console.log('File download completed, cleaning up temp files...');
+      console.log('FFmpeg file download completed, cleaning up temp files...');
       
       // Extract timestamp from the output file to find related temp files
       const timestamp = path.basename(filePath).replace('output_', '').replace('.mp4', '');
@@ -553,34 +597,51 @@ app.get('/api/download-file/:downloadId', (req, res) => {
       const videoFile = path.join(tempDir, `video_${timestamp}.mp4`);
       const audioFile = path.join(tempDir, `audio_${timestamp}.mp4`);
       
-      // Clean up all related temp files
-      try {
-        if (fs.existsSync(videoFile)) {
-          fs.unlinkSync(videoFile);
-          console.log('Cleaned up video temp file:', videoFile);
-        }
-        if (fs.existsSync(audioFile)) {
-          fs.unlinkSync(audioFile);
-          console.log('Cleaned up audio temp file:', audioFile);
-        }
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log('Cleaned up output temp file:', filePath);
-        }
-        
-        // Remove from progress tracking
-        downloadProgress.delete(downloadId);
-        console.log('Progress tracking cleaned up for:', downloadId);
-        
-      } catch (cleanupError) {
-        console.error('Error during immediate cleanup:', cleanupError);
+      // Use the centralized cleanup function
+      cleanupAfterDownload(downloadId, [videoFile, audioFile, filePath]);
+    });
+    
+    // Handle stream errors and cleanup
+    fileStream.on('error', (streamError) => {
+      console.error('File stream error:', streamError);
+      
+      // Extract timestamp and cleanup on error
+      const timestamp = path.basename(filePath).replace('output_', '').replace('.mp4', '');
+      const tempDir = path.dirname(filePath);
+      const videoFile = path.join(tempDir, `video_${timestamp}.mp4`);
+      const audioFile = path.join(tempDir, `audio_${timestamp}.mp4`);
+      
+      cleanupAfterDownload(downloadId, [videoFile, audioFile, filePath]);
+      
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error streaming file' });
       }
     });
     
-    // Handle stream errors
-    fileStream.on('error', (streamError) => {
-      console.error('File stream error:', streamError);
-      res.status(500).json({ error: 'Error streaming file' });
+    // Handle response close/abort during streaming
+    res.on('close', () => {
+      console.log('FFmpeg file download connection closed');
+      
+      // Extract timestamp and cleanup if connection closed
+      const timestamp = path.basename(filePath).replace('output_', '').replace('.mp4', '');
+      const tempDir = path.dirname(filePath);
+      const videoFile = path.join(tempDir, `video_${timestamp}.mp4`);
+      const audioFile = path.join(tempDir, `audio_${timestamp}.mp4`);
+      
+      cleanupAfterDownload(downloadId, [videoFile, audioFile, filePath]);
+    });
+    
+    // Handle response errors
+    res.on('error', (resError) => {
+      console.error('FFmpeg file download response error:', resError);
+      
+      // Extract timestamp and cleanup on error
+      const timestamp = path.basename(filePath).replace('output_', '').replace('.mp4', '');
+      const tempDir = path.dirname(filePath);
+      const videoFile = path.join(tempDir, `video_${timestamp}.mp4`);
+      const audioFile = path.join(tempDir, `audio_${timestamp}.mp4`);
+      
+      cleanupAfterDownload(downloadId, [videoFile, audioFile, filePath]);
     });
     
   } catch (error) {
@@ -1130,8 +1191,33 @@ app.get('/api/download', async (req, res) => {
       }
     });
     
+
+    
+    // Generate a download ID for tracking and cleanup
+    const downloadId = `direct_${Date.now()}`;
+    
+    stream.on('end', () => {
+      console.log('Stream ended successfully');
+      // Clean up after successful download
+      cleanupAfterDownload(downloadId);
+    });
+    
+    res.on('close', () => {
+      console.log('Response connection closed');
+      // Clean up if connection was closed prematurely
+      cleanupAfterDownload(downloadId);
+    });
+    
+    res.on('error', (error) => {
+      console.error('Response error:', error.message);
+      // Clean up on error
+      cleanupAfterDownload(downloadId);
+    });
+    
     stream.on('error', (error) => {
-      console.error('Stream error:', error.message);
+      console.error('Stream error during download:', error.message);
+      // Clean up on stream error
+      cleanupAfterDownload(downloadId);
       if (error.message.includes('403') || error.message.includes('Forbidden')) {
         console.log('YouTube 403 error detected, this video may be restricted or require different access methods');
         if (!res.headersSent) {
@@ -1144,20 +1230,8 @@ app.get('/api/download', async (req, res) => {
       }
     });
     
-    stream.on('end', () => {
-      console.log('Stream ended successfully');
-    });
-    
-    res.on('close', () => {
-      console.log('Response connection closed');
-    });
-    
-    res.on('error', (error) => {
-      console.error('Response error:', error.message);
-    });
-    
     stream.pipe(res);
-    console.log('Stream piped to response');
+    console.log('Stream piped to response with download ID:', downloadId);
 
   } catch (error) {
     console.error('Error processing download:', error);

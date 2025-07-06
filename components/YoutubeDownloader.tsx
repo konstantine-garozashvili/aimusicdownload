@@ -62,7 +62,7 @@ const YoutubeDownloader: React.FC = () => {
 
   const handleGetInfo = async () => {
     if (!url.trim()) {
-      setError('Please enter a YouTube URL');
+      setError('გთხოვთ შეიყვანოთ YouTube-ის ლინკი');
       return;
     }
 
@@ -125,7 +125,7 @@ const YoutubeDownloader: React.FC = () => {
 
   const handleConvert = async () => {
     if (!videoInfo || !selectedQuality) {
-      setError('Please select a quality option');
+      setError('გთხოვთ აირჩიოთ ხარისხის ვარიანტი');
       return;
     }
 
@@ -154,7 +154,7 @@ const YoutubeDownloader: React.FC = () => {
       const isFFmpegMerge = requiresFFmpeg(selectedFormatInfo);
       
       if (!isFFmpegMerge) {
-        setError('Cette qualité ne nécessite pas de conversion FFmpeg. Utilisez le bouton de téléchargement direct.');
+        setError('ეს ხარისხი არ საჭიროებს FFmpeg კონვერტაციას. გამოიყენეთ პირდაპირი ჩამოტვირთვის ღილაკი.');
         setIsConverting(false);
         return;
       }
@@ -178,20 +178,20 @@ const YoutubeDownloader: React.FC = () => {
           console.log('Got download ID for conversion:', downloadId);
           setDownloadProgress({
             percentage: 0,
-            stage: 'Initialisation de la conversion...',
+            stage: 'კონვერტაციის ინიციალიზაცია...',
             status: 'starting',
             downloadId
           });
         } else {
           console.error('No X-Download-ID header found in HEAD response');
-          setError('Aucun ID de téléchargement reçu du serveur');
+          setError('სერვერიდან ჩამოტვირთვის ID არ მოვიდა');
           setIsConverting(false);
           return;
         }
       } catch (headError) {
         console.error('HEAD request failed:', headError);
         console.error('HEAD error details:', headError);
-        setError('Impossible d\'obtenir l\'ID de téléchargement: ' + (headError instanceof Error ? headError.message : 'Erreur inconnue'));
+        setError('ჩამოტვირთვის ID-ის მიღება შეუძლებელია: ' + (headError instanceof Error ? headError.message : 'უცნობი შეცდომა'));
         setIsConverting(false);
         return;
       }
@@ -239,13 +239,13 @@ const YoutubeDownloader: React.FC = () => {
           console.error('Error starting FFmpeg conversion:', error);
           console.error('Error type:', typeof error);
           console.error('Error details:', error);
-          setError('Erreur lors du démarrage de la conversion: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+          setError('კონვერტაციის დაწყების შეცდომა: ' + (error instanceof Error ? error.message : 'უცნობი შეცდომა'));
           setIsConverting(false);
           return;
         }
       } else {
         console.error('=== NO DOWNLOAD ID AVAILABLE FOR GET REQUEST ===');
-        setError('Aucun ID de téléchargement disponible');
+        setError('ჩამოტვირთვის ID მიუწვდომელია');
         setIsConverting(false);
         return;
       }
@@ -255,7 +255,7 @@ const YoutubeDownloader: React.FC = () => {
         console.log('Starting progress tracking for conversion:', downloadId);
         setDownloadProgress({
           percentage: 0,
-          stage: 'Démarrage de la conversion...',
+          stage: 'კონვერტაციის დაწყება...',
           status: 'starting',
           downloadId
         });
@@ -276,7 +276,7 @@ const YoutubeDownloader: React.FC = () => {
               
               setDownloadProgress({
                 percentage: percentage,
-                stage: progressData.stage || 'En cours...',
+                stage: progressData.stage || 'მიმდინარეობს...',
                 status: progressData.status || 'processing',
                 downloadId
               });
@@ -291,7 +291,7 @@ const YoutubeDownloader: React.FC = () => {
                 // Keep progress visible for a moment to show 100% completion
                 setDownloadProgress({
                   percentage: 100,
-                  stage: 'Conversion terminée !',
+                  stage: 'კონვერტაცია დასრულდა!',
                   status: 'completed',
                   downloadId
                 });
@@ -321,7 +321,7 @@ const YoutubeDownloader: React.FC = () => {
           } catch (error) {
             clearInterval(pollInterval);
             console.error('Progress polling error:', error);
-            setError('Erreur lors de la conversion: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+            setError('კონვერტაციის შეცდომა: ' + (error instanceof Error ? error.message : 'უცნობი შეცდომა'));
             setIsConverting(false);
             setDownloadProgress(null);
           }
@@ -332,20 +332,20 @@ const YoutubeDownloader: React.FC = () => {
           clearInterval(pollInterval);
           if (isConverting) {
             console.log('FFmpeg conversion timeout');
-            setError('La conversion a pris trop de temps. Veuillez réessayer.');
+            setError('კონვერტაციას ძალიან დიდი დრო დასჭირდა. გთხოვთ სცადოთ ხელახლა.');
             setIsConverting(false);
             setDownloadProgress(null);
           }
         }, 600000);
         
       } else {
-        setError('Impossible de démarrer la conversion FFmpeg');
+        setError('FFmpeg კონვერტაციის დაწყება შეუძლებელია');
         setIsConverting(false);
       }
       
     } catch (err) {
       console.error('Conversion error:', err);
-      setError(err instanceof Error ? err.message : 'Erreur lors de la conversion');
+      setError(err instanceof Error ? err.message : 'კონვერტაციის შეცდომა');
       setIsConverting(false);
       setDownloadProgress(null);
     }
@@ -353,7 +353,7 @@ const YoutubeDownloader: React.FC = () => {
 
   const handleDownload = async () => {
     if (!videoInfo || !selectedQuality) {
-      setError('Please select a quality option');
+      setError('გთხოვთ აირჩიოთ ხარისხის ვარიანტი');
       return;
     }
 
@@ -389,7 +389,7 @@ const YoutubeDownloader: React.FC = () => {
 
           return;
         } else {
-          setError('Veuillez d\'abord convertir la vidéo avant de télécharger');
+          setError('გთხოვთ ჯერ გადააკეთოთ ვიდეო ჩამოტვირთვამდე');
           return;
         }
       }
@@ -426,7 +426,7 @@ const YoutubeDownloader: React.FC = () => {
         console.log('Starting progress tracking for download ID:', downloadId);
         setDownloadProgress({
           percentage: 0,
-          stage: 'Initialisation...',
+          stage: 'ინიციალიზაცია...',
           status: 'starting',
           downloadId
         });
@@ -467,9 +467,9 @@ const YoutubeDownloader: React.FC = () => {
       
       if (err instanceof Error) {
         if (err.name === 'AbortError' || err.message.includes('aborted')) {
-          errorMessage = 'Le téléchargement a pris trop de temps ou a été interrompu. Veuillez réessayer avec une qualité inférieure.';
+          errorMessage = 'ჩამოტვირთვას ძალიან დიდი დრო დასჭირდა ან შეწყდა. გთხოვთ სცადოთ უფრო დაბალი ხარისხით.';
         } else if (err.name === 'TimeoutError' || err.message.includes('timeout')) {
-          errorMessage = 'Le téléchargement a pris trop de temps. Veuillez réessayer avec une qualité inférieure.';
+          errorMessage = 'ჩამოტვირთვას ძალიან დიდი დრო დასჭირდა. გთხოვთ სცადოთ უფრო დაბალი ხარისხით.';
         } else {
           errorMessage = err.message;
         }
@@ -502,7 +502,7 @@ const YoutubeDownloader: React.FC = () => {
       const qualityLabel = `${format.qualityLabel || format.quality || 'Unknown'} (${format.container})`;
       // Add note for video-only formats that require FFmpeg
       if (format.hasVideo && !format.hasAudio) {
-        return `${qualityLabel} - HD (nécessite FFmpeg)`;
+        return `${qualityLabel} - HD (საჭიროებს FFmpeg)`;
       }
       return qualityLabel;
     }
@@ -531,8 +531,18 @@ const YoutubeDownloader: React.FC = () => {
 
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-700 w-full max-w-2xl mx-auto">
+      {/* Animated Logo */}
+      <div className="text-center mb-8">
+        <div className="inline-block">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent animate-pulse">
+            BESETKA MUSIC
+          </h1>
+          <div className="h-1 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full mt-2 animate-pulse"></div>
+        </div>
+      </div>
+      
       <h2 className="text-2xl font-semibold mb-6 text-center text-gray-200">
-        Téléchargeur YouTube
+        გლდანი loves you !
       </h2>
       
       <div className="space-y-6">
@@ -542,7 +552,7 @@ const YoutubeDownloader: React.FC = () => {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Collez l'URL YouTube ici..."
+            placeholder="ჩასვით YouTube-ის ლინკი აქ..."
             className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition duration-200 disabled:opacity-50"
             disabled={isLoading}
           />
@@ -559,7 +569,7 @@ const YoutubeDownloader: React.FC = () => {
               className="mr-3 text-cyan-500 focus:ring-cyan-500"
               disabled={isLoading || isDownloading}
             />
-            <span className="text-gray-300">MP3 (Audio seulement)</span>
+            <span className="text-gray-300">MP3 (მხოლოდ აუდიო)</span>
           </label>
           <label className="flex items-center cursor-pointer">
             <input
@@ -570,7 +580,7 @@ const YoutubeDownloader: React.FC = () => {
               className="mr-3 text-cyan-500 focus:ring-cyan-500"
               disabled={isLoading || isDownloading}
             />
-            <span className="text-gray-300">MP4 (Vidéo)</span>
+            <span className="text-gray-300">MP4 (ვიდეო)</span>
           </label>
         </div>
         
@@ -583,7 +593,7 @@ const YoutubeDownloader: React.FC = () => {
           {isLoading ? (
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
           ) : (
-            'Obtenir les infos vidéo'
+            'მოძებნე ძმა :)'
           )}
         </button>
         
@@ -595,20 +605,20 @@ const YoutubeDownloader: React.FC = () => {
               {videoInfo.thumbnail && (
                 <img
                   src={videoInfo.thumbnail}
-                  alt="Miniature vidéo"
+                  alt="ვიდეოს მინიატურა"
                   className="w-32 h-24 object-cover rounded-lg flex-shrink-0 border border-gray-600"
                 />
               )}
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-200 mb-2">{videoInfo.title}</h3>
-                <p className="text-sm text-gray-400">Durée: {videoInfo.duration || 'Inconnue'}</p>
+                <p className="text-sm text-gray-400">ხანგრძლივობა: {videoInfo.duration || 'უცნობი'}</p>
               </div>
             </div>
             
             {/* Quality Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Sélectionner la qualité:
+                ხარისხის არჩევა:
               </label>
               <select
                 value={selectedQuality}
@@ -616,7 +626,7 @@ const YoutubeDownloader: React.FC = () => {
                 className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none"
                 disabled={isDownloading}
               >
-                <option value="">Choisir la qualité...</option>
+                <option value="">აირჩიეთ ხარისხი...</option>
                 {getAvailableQualities().map((format) => (
                   <option key={format.itag} value={format.itag}>
                     {formatQualityLabel(format)}
@@ -637,24 +647,24 @@ const YoutubeDownloader: React.FC = () => {
                 <div className="bg-blue-900/30 border border-blue-600 rounded-lg p-3 text-sm text-blue-200">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-xs text-white font-bold">i</div>
-                    <span>Cette qualité HD nécessite un traitement FFmpeg (fusion vidéo/audio). Le téléchargement peut prendre 2-5 minutes.</span>
+                    <span>ეს HD ხარისხი საჭიროებს FFmpeg დამუშავებას (ვიდეო/აუდიო შერწყმა). ჩამოტვირთვას შეიძლება დასჭირდეს 2-5 წუთი.</span>
                   </div>
                   <div className="mt-2 text-xs text-blue-300">
                     Format: {selectedFormatInfo?.itag} - {selectedFormatInfo?.qualityLabel} | 
-                    Vidéo: {selectedFormatInfo?.hasVideo ? 'Oui' : 'Non'} | 
-                    Audio: {selectedFormatInfo?.hasAudio ? 'Oui' : 'Non'}
+                    ვიდეო: {selectedFormatInfo?.hasVideo ? 'კი' : 'არა'} | 
+                    აუდიო: {selectedFormatInfo?.hasAudio ? 'კი' : 'არა'}
                   </div>
                 </div>
               ) : selectedFormatInfo ? (
                 <div className="bg-green-900/30 border border-green-600 rounded-lg p-3 text-sm text-green-200">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center text-xs text-white font-bold">✓</div>
-                    <span>Cette qualité contient déjà l'audio. Téléchargement direct disponible.</span>
+                    <span>ეს ხარისხი უკვე შეიცავს აუდიოს. პირდაპირი ჩამოტვირთვა ხელმისაწვდომია.</span>
                   </div>
                   <div className="mt-2 text-xs text-green-300">
                     Format: {selectedFormatInfo?.itag} - {selectedFormatInfo?.qualityLabel} | 
-                    Vidéo: {selectedFormatInfo?.hasVideo ? 'Oui' : 'Non'} | 
-                    Audio: {selectedFormatInfo?.hasAudio ? 'Oui' : 'Non'}
+                    ვიდეო: {selectedFormatInfo?.hasVideo ? 'კი' : 'არა'} | 
+                     აუდიო: {selectedFormatInfo?.hasAudio ? 'კი' : 'არა'}
                   </div>
                 </div>
               ) : null;
@@ -681,14 +691,14 @@ const YoutubeDownloader: React.FC = () => {
                         {isConverting ? (
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                         ) : (
-                          'Convertir en MP4'
+                          'MP4-ში კონვერტაცია'
                         )}
                       </button>
                     ) : (
                       <div className="space-y-3">
                         <div className="bg-green-900/30 border border-green-500/50 text-green-400 px-4 py-3 rounded-lg">
-                          <p className="font-semibold">✓ Conversion terminée !</p>
-                          <p className="text-sm">La vidéo est prête à être téléchargée en MP4.</p>
+                          <p className="font-semibold">✓ კონვერტაცია დასრულდა!</p>
+                          <p className="text-sm">ვიდეო მზადაა MP4 ფორმატში ჩამოსატვირთად.</p>
                         </div>
                         <button
                           onClick={handleDownload}
@@ -698,7 +708,7 @@ const YoutubeDownloader: React.FC = () => {
                           {isDownloading ? (
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                           ) : (
-                            'Télécharger MP4'
+                            'MP4 ჩამოტვირთვა'
                           )}
                         </button>
                       </div>
@@ -716,7 +726,7 @@ const YoutubeDownloader: React.FC = () => {
                     {isDownloading ? (
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                     ) : (
-                      `Télécharger ${selectedFormat.toUpperCase()}`
+                      `${selectedFormat.toUpperCase()} ჩამოტვირთვა`
                     )}
                   </button>
                 );
@@ -756,7 +766,7 @@ const YoutubeDownloader: React.FC = () => {
                       isConverting ? 'border-orange-500' : 'border-cyan-500'
                     }`}></div>
                     <span className={isConverting ? 'text-orange-400' : 'text-cyan-400'}>
-                      {isConverting ? 'Initialisation de la conversion...' : 'Initialisation du téléchargement...'}
+                      {isConverting ? 'კონვერტაციის ინიციალიზაცია...' : 'ჩამოტვირთვის ინიციალიზაცია...'}
                     </span>
                   </div>
                 )}
